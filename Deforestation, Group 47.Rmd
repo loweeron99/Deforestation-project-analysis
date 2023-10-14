@@ -1,0 +1,231 @@
+---
+title: "Deforestation, Group 47"
+author: "Low Eeron(A0216716E), Callista Stephine Yu (A0219743Y),Le Van Minh (A0219739N),Muhammad Imtiyaaz (A0216752E)"
+date: "2023-04-14"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+The Deforestation data set (2021-04-06) provides a detailed look at global forest loss, its extent, and contributing factors. This resource allows readers to understand deforestation's worldwide impact over the years and major contributing factors to the changes seen.The datasets used from this repo are forest_area.csv, and brazil_loss.csv.Using these data sets the two question we will be answering is 1.How has the top 5 countries with the largest forest area percentage in 1990 changed over the years? 2.What are the top 5 factors contributing to deforestation in Brazil for each year?
+
+```{r}
+forest_area <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-04-06/forest_area.csv', show_col_types = FALSE)
+brazil_loss <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-04-06/brazil_loss.csv', show_col_types = FALSE)
+library(tidyverse)
+if (!requireNamespace("scales", quietly = TRUE)) {
+  install.packages("scales")
+}
+library(scales)
+library(ggplot2)
+```
+
+## Descriptive statistics
+
+`forest_area` contains column `entity`, which can be countries, continents, and other special economics regions. Only countries have non-missing `code`. The year in this dataset ranges from 1990-2020.
+
+```{r}
+# Representatives for countries, continents, subregions, and self-governing archipelagos
+representatives <- c("China", "Africa", "Caribbean", "Faroe Islands")
+
+forest_area %>% 
+  filter(entity %in% representatives & year == 2000)
+```
+
+In `brazil_loss`, there're some suspicious zeros. These might be missing values, and the data collectors just put them as zeros for convenience. However, it can also be due to irregular economics activities (dams flooding, mining, etc.), so we decided not to impute these data points, but to leave them how we found them. 
+
+```{r}
+brazil_loss %>% 
+  select(code, year, flooding_due_to_dams, mining) %>% 
+  head(10)
+```
+
+```{r}
+summary(forest_area)
+unique(forest_area$year)
+```
+
+
+
+## Question 1:How has the top 5 countries with the largest forest area percentage in 1990 changed over the years?
+
+
+### Introduction
+Deforestation is a big factor in climate change in our society. Therefore we analyze the top 5 countries with the largest forest area in 1990 using the forest_area dataset to study their changes in forest area percentages over time. This is important as it will showcase the changes to the forest area in these countries. This is vital as we can learn from the governmental policies and environmental regulations used in the countries that have positive forest area growth to replicate them in countries contributing to the deforestation problem. 
+
+
+### Methodology
+We analyze the change in forest area percentage over time for the top 5 countries with the largest forest area percentage in 1990 using two visualizations: a line chart and a heatmap. The line chart plots forest area percentage over time, with each line representing a country. A secondary y-axis with a log scale is used to show percentage change relative to 1990, and percentage change values are displayed for the year 2020.The heatmap displays forest area percentage for the top 5 countries over time, using a color palette ranging from red to green to represent lower to higher percentages. The x-axis represents the years, while the y-axis represents the countries. The heatmap allows for a quick comparison of forest area percentages among countries across different years.These visualizations provide a comprehensive view of how forest area percentage has changed over time for the top 5 countries in 1990. The line chart helps track the trend in forest area percentage for each country and compare trends among them. The heatmap makes it easy to spot patterns or trends, as well as quickly compare forest area percentages among the top 5 countries. Together, these visualizations offer valuable insights into changes in forest area percentage over time for these countries.
+
+### Visualizations
+```{r}
+options(warn = -1)
+# Filter the data for the top 5 countries with the largest forest area percentage in 1990
+top5_1990 <- forest_area %>%
+  filter(year == 1990) %>%
+  filter(!is.na(code)) %>% 
+  filter(entity != "World") %>% 
+  arrange(desc(forest_area)) %>%
+  slice(c(1,2,3,4,5)) %>%
+  pull(entity)
+
+# Filter the forest_area dataset for the top 5 countries
+forest_area_top5 <- forest_area %>%
+  filter(entity %in% top5_1990)
+
+# Calculate the percentage change in forest area for each country relative to its forest area percentage in 1990
+forest_area_top5 <- forest_area_top5 %>%
+  group_by(entity) %>%
+  mutate(pct_change = (forest_area / forest_area[year == 1990] - 1) * 100)
+
+# Create a line chart showing the change in forest area for the top 5 countries over time
+ggplot_forest_area <- ggplot(forest_area_top5, aes(x = year, y = forest_area, color = entity)) +
+  geom_line() +
+  labs(title = "Change in Forest Area percentage Over Time for Top 5 Countries in 1990",
+       x = "Year",
+       y = "Forest Area Percentage",
+       color = "Country") +
+  scale_y_continuous(sec.axis = sec_axis(trans = "log", 
+                                         breaks = c(50, 100, 200, 500, 1000, 2000, 5000, 10000),
+                                         labels = c(50, 100, 200, 500, 1000, 2000, 5000, 10000))) +
+  geom_text(data = subset(forest_area_top5, year == 2020), 
+            aes(x = year, y = forest_area, label = paste0(round(pct_change, 1), "% change")), 
+            hjust = -0, vjust = 0, size = 3, color = "black")+
+  theme_minimal() +
+  scale_x_continuous(limits = c(min(forest_area_top5$year), 2026)) # Extend x-axis to 2025
+
+ggplot_forest_area
+
+
+
+# Create a heat map of the forest area percentage for the top 5 countries over time
+ggplot_forest_area_heatmap <- ggplot(forest_area_top5, aes(x = year, y = entity, fill = forest_area)) +
+  geom_tile(color = "white") +
+  scale_fill_distiller(palette = "RdYlGn", direction = 1,  # Use RdYlGn palette and reverse direction
+                       type = "seq", guide = guide_colorbar()) +
+  labs(title = "Forest Area Percentage for Top 5 Countries in 1990",
+       x = "Year",
+       y = "Country",
+       fill = "Forest Area Percentage") +
+  theme_minimal()
+
+# Print the plot
+print(ggplot_forest_area_heatmap)
+
+
+
+```
+
+### Discussions
+The visualizations provide insights into the change in forest area percentage over time for the top 5 countries with the largest forest area percentage in 1990, revealing trends and comparisons among them. The line plot shows Brazil and the Democratic Republic of Congo experienced decreases in forest area percentage, while Canada, the United States, and China saw increases. China had a significant increase of 46.1%.The heatmap conveys the same information using color-coded tiles, making it easier to identify trends and compare forest area percentages across different years. Brazil and the Democratic Republic of Congo display warmer colors(red), indicating decreases, while Canada, the United States, and China show cooler colors(green), indicating increases.These trends can be attributed to differences in forest management policies, deforestation rates, and afforestation efforts among the countries. China's extensive afforestation programs contributed to its significant increase in forest area percentage[1]. In contrast, Brazil and the Democratic Republic of Congo experienced decreases due to higher deforestation rates driven by factors like agriculture, logging, and infrastructure development[2].The visualizations effectively communicate the changes in forest area percentage over time for the top 5 countries, encouraging further exploration into the reasons behind these trends.
+
+
+## Question 2:What are the top 5 factors contributing to deforestation in Brazil for each year?
+
+### Introduction
+In this analysis, we examine the top 5 drivers of deforestation in Brazil over time, utilizing a dataset containing information on area loss due to various factors. Brazil, with one of the world's largest forest areas, is an important region to study for understanding the environmental impacts of deforestation. The goal is to uncover trends that can inform policy decisions and strategies for sustainable forest management. By focusing on Brazil and the main factors contributing to deforestation, we aim to shed light on the changes in these drivers over time. This exploration can ultimately contribute to preserving biodiversity and mitigating the effects of deforestation.
+
+### Methodology
+To answer the question about the top 5 deforestation drivers in Brazil over time, we created two distinct visualizations using the dataset containing information on area loss (in hectares) attributed to various factors.The first plot is a dodged bar chart displaying the area loss (in hectares) on a log10 scale on the y-axis and the years on the x-axis. This plot highlights the top 5 drivers of deforestation for each year, allowing us to easily compare their magnitudes. The drivers are represented by different colors, and the data is grouped and ranked by the total deforestation caused by each driver.The second visualization is a stacked area chart, showing the percentage of total deforestation caused by each driver over time. With years on the x-axis and the percentage of total deforestation on the y-axis, this plot provides an overview of the drivers' relative contributions to deforestation. Each driver is represented by a distinct color, allowing us to observe how their respective shares have evolved over time.Both visualizations complement each other by providing different perspectives on the same question. While the dodged bar chart emphasizes the absolute area loss values caused by each driver, the stacked area chart focuses on their relative contributions. Together, these plots enable us to identify trends and changes in the drivers of deforestation in Brazil, providing valuable insights for policy decisions and strategies to mitigate the environmental impacts.
+
+
+### Visualizations
+```{r}
+brazil_long_top5 <- brazil_loss %>%
+  select(-entity, -code) %>%
+  pivot_longer(cols = -year,
+               names_to = "driver",
+               values_to = "value") %>% 
+  filter(value != 0) %>% 
+  group_by(year) %>%
+  top_n(5, value) %>% 
+  ungroup() %>% 
+  mutate(rank = dense_rank(-value)) %>% # Add this line to compute rank within each year
+  arrange(year, rank) # Change this line to sort by year and rank
+
+ggplot(brazil_long_top5, aes(x = year, y = value, fill = driver, group = rank)) + # Add group aesthetic
+  geom_col(position = "dodge", width = 0.7) +
+  labs(title = "Top 5 Deforestation Drivers in Brazil Over Time",
+       x = "Year",
+       y = "Area Loss (ha) - Log10 Scale",
+       fill = "Driver") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        panel.spacing = unit(0.5, "cm")) +
+  scale_y_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  scale_x_continuous(breaks = unique(brazil_long_top5$year))
+
+
+
+brazil_long_top5 <- brazil_loss %>%
+  select(-entity, -code) %>%
+  pivot_longer(cols = -year,
+               names_to = "driver",
+               values_to = "value") %>% 
+  group_by(year) %>%
+  top_n(5, value) %>% 
+  ungroup()
+
+# Create a complete dataset with all combinations of years and drivers
+complete_data <- expand.grid(year = unique(brazil_long_top5$year), 
+                             driver = unique(brazil_long_top5$driver))
+
+# Merge the complete dataset with brazil_long_top5 and replace any missing values with 0
+brazil_long_top5_filled <- merge(complete_data, brazil_long_top5, by = c("year", "driver"), all.x = TRUE) %>%
+  replace_na(list(value = 0))
+
+# Calculate the total deforestation per year and the percentage for each driver
+brazil_long_top5_filled <- brazil_long_top5_filled %>%
+  group_by(year) %>%
+  mutate(total_deforestation = sum(value),
+         percentage = value / total_deforestation) %>%
+  ungroup()
+
+# Reorder the driver factor levels based on the total deforestation caused by each driver
+total_deforestation_by_driver <- brazil_long_top5_filled %>%
+  group_by(driver) %>%
+  summarise(total_deforestation = sum(value)) %>%
+  arrange(-total_deforestation)
+
+brazil_long_top5_filled$driver <- factor(brazil_long_top5_filled$driver, 
+                                         levels = total_deforestation_by_driver$driver)
+
+# Create the stacked area chart with the y-axis as a percentage
+ggplot(brazil_long_top5_filled, aes(x = year, y = percentage, fill = driver)) +
+  geom_area(position = "stack", alpha = 0.7) +
+  labs(title = "Top 5 Deforestation Drivers in Brazil Over Time",
+       x = "Year",
+       y = "Percentage of Total Deforestation",
+       fill = "Driver") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        panel.spacing = unit(0.5, "cm")) +
+  scale_y_continuous(labels = scales::percent, breaks = seq(0, 1, 0.1)) +
+  scale_x_continuous(breaks = unique(brazil_long_top5_filled$year))
+
+```
+
+### Discussions
+
+The visualizations help readers understand the top 5 drivers of deforestation in Brazil and their evolution over time. The dodged bar chart shows the magnitude of area loss for each driver yearly, while the stacked area chart highlights their relative contributions to total deforestation.Trends reveal that the main drivers have fluctuated over the years, with some consistently maintaining high contributions and others changing in significance. The stacked area chart allows observation of any dominant driver or changes in leading causes of deforestation. The factors affecting deforestation in Brazil are agricultural practices, urbanization, logging activities, and policy implementations. By analyzing these visualizations, we can better understand which factors are most important and make well-informed decisions to address deforestation effectively.
+
+## Reference
+
+[1]“How China brought its forests back to life in a decade,” Rapid Transition Alliance, 02-Dec-2018. [Online]. Available: https://www.rapidtransition.org/stories/how-china-brought-its-forests-back-to-life-in-a-decade/.
+
+[2]R. A. Butler, “Congo deforestation,” Mongabay, 09-Feb-2020. [Online]. Available: https://rainforests.mongabay.com/congo/deforestation.html.
+
+https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-04-06/forest_area.csv'
+
+https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-04-06/brazil_loss.csv'
+
+
